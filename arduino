@@ -1,0 +1,175 @@
+#include <Adafruit_Fingerprint.h>
+#include <Servo.h>
+SoftwareSerial mySerial(4, 5);
+//初始化
+Servo myservo;
+Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
+uint8_t id;
+int pos=60;//舵机角度
+
+
+//函数列表
+char fingersure();
+int open(int pos);
+int close(int pos);
+
+//接口
+const int TrigPin = 2; 
+const int EchoPin = 3; 
+const int sanjiguan=7;
+const int turn=8;
+float cm;
+void setup()  
+{//初始化
+  Serial.begin(9600);
+  myservo.attach(6);//舵机
+  pinMode(TrigPin, OUTPUT); 
+  pinMode(EchoPin, INPUT); 
+  pinMode(sanjiguan, OUTPUT);
+  digitalWrite(sanjiguan, LOW);
+}
+int time1=millis();
+void loop(){
+  Serial.print(digitalRead(turn)); 
+ if(millis()-time1>500&&digitalRead(turn)==1){
+    if(pos <= 140){
+      pos=open(pos);
+      }
+    time1=millis();
+    }
+ if(millis()-time1>500&&digitalRead(turn)==1){
+    if(pos >=60){
+      delay(3000);
+       pos=close(pos); 
+       }
+    time1=millis();
+    }
+
+  //发一个10ms的高脉冲去触发TrigPin //超声波测距
+digitalWrite(TrigPin, LOW); 
+delayMicroseconds(2); 
+digitalWrite(TrigPin, HIGH); 
+delayMicroseconds(10); 
+digitalWrite(TrigPin, LOW); 
+ 
+cm = pulseIn(EchoPin, HIGH) / 58.0; //算成厘米 
+cm = (int(cm * 100.0)) / 100.0; //保留两位小数 
+Serial.print("\r\n");
+Serial.print(cm); 
+Serial.print("cm"); 
+
+ if(cm<30&&pos<= 140){
+  digitalWrite(sanjiguan, HIGH);//指纹通电
+  
+  bool fs=false;
+  for(int i=0;i<5;i++){
+    delay(500);
+  if (fingersure()== FINGERPRINT_OK){
+      fs=true;
+      break;
+      }}
+  
+  if(fs){
+    Serial.print("开锁");
+    pos=open(pos);
+    fs=false;
+    }
+ }else{
+  digitalWrite(sanjiguan, LOW);
+  }
+  delay(1000);
+  }
+
+int open(int pos){
+    for (; pos <= 140; pos += 1) { // goes from 0 degrees to 180 degrees
+    // in steps of 1 degree
+    myservo.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(15);                       // waits 15ms for the servo to reach the position
+  }
+  return pos;
+  }
+int close(int pos){
+    for (; pos >=60; pos -= 1) { // goes from 0 degrees to 180 degrees
+    // in steps of 1 degree
+    myservo.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(15);                       // waits 15ms for the servo to reach the position
+  }
+  return pos;
+  }
+
+
+  
+
+
+char fingersure(){
+  while (!Serial){  // For Yun/Leo/Micro/Zero/...
+  delay(100);
+  Serial.println("\n\nAdafruit Fingerprint sensor enrollment");
+  return;}
+  // set the data rate for the sensor serial port
+  finger.begin(57600);
+  if (finger.verifyPassword()) {
+    //Serial.println("Found fingerprint sensor!");
+  } else {
+    Serial.println("Did not find fingerprint sensor :(");
+    return;
+    while (1) { delay(1); }
+  }
+
+  
+  uint8_t p = finger.getImage();
+  switch (p) {
+    case FINGERPRINT_OK:
+      Serial.println("Image taken");
+      break;
+    case FINGERPRINT_NOFINGER:
+      //Serial.println("No finger detected");
+      return p;
+    case FINGERPRINT_PACKETRECIEVEERR:
+      Serial.println("Communication error");
+      return p;
+    case FINGERPRINT_IMAGEFAIL:
+      Serial.println("Imaging error");
+      return p;
+    default:
+      Serial.println("Unknown error");
+      return p;
+  }
+  p = finger.image2Tz();
+  switch (p) {
+    case FINGERPRINT_OK:
+      Serial.println("Image converted");
+      break;
+    case FINGERPRINT_IMAGEMESS:
+      Serial.println("Image too messy");
+      return p;
+    case FINGERPRINT_PACKETRECIEVEERR:
+      Serial.println("Communication error");
+      return p;
+    case FINGERPRINT_FEATUREFAIL:
+      Serial.println("Could not find fingerprint features");
+      return p;
+    case FINGERPRINT_INVALIDIMAGE:
+      Serial.println("Could not find fingerprint features");
+      return p;
+    default:
+      Serial.println("Unknown error");
+      return p;
+  }
+  p = finger.fingerFastSearch();
+  if (p == FINGERPRINT_OK) {
+    return p;
+    Serial.println("Found a print match!");
+  } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
+    Serial.println("Communication error");
+    return p;
+  } else if (p == FINGERPRINT_NOTFOUND) {
+    Serial.println("Did not find a match");
+    return p;
+  } else {
+    Serial.println("Unknown error");
+    return p;
+  } 
+  
+  
+  }
